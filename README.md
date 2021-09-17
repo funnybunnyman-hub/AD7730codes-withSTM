@@ -1,2 +1,2 @@
 # STMprojects
-STM codes for robot sensors are included
+STM codes for AD7730 are included
