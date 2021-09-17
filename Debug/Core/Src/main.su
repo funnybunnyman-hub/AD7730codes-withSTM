@@ -1,0 +1,8 @@
+core_cm3.h:1876:26:ITM_SendChar	16	static,ignoring_inline_asm
+main.c:121:20:copy_buffer	32	static
+main.c:127:20:set_state	16	static
+main.c:150:6:HAL_SPI_TxRxCpltCallback	16	static
+main.c:195:5:main	56	static
+main.c:519:6:SystemClock_Config	72	static
+main.c:554:5:_write	32	static
+main.c:569:6:Error_Handler	4	static

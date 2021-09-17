@@ -1,0 +1,8 @@
+ad7730.c:3:6:ad7730_setup	16	static
+ad7730.c:6:6:ad7730_set_filter	24	static
+ad7730.c:14:6:ad7730_softreset	24	static
+ad7730.c:23:6:ad7730_system_zero_scale_calibration	16	static
+ad7730.c:27:6:ad7730_internal_zero_scale_calibration	16	static
+ad7730.c:31:6:ad7730_set_communication_mode	24	static
+ad7730.c:38:6:ad7730_read_register	24	static
+ad7730.c:50:6:ad7730_write_register	24	static
