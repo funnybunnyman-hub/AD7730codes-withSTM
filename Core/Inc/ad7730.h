@@ -144,13 +144,13 @@ extern uint8_t AD7730_REGISTER_SIZE[8];
 extern uint8_t filter_register[3];
 extern uint8_t mode_register[2];
 
-//void ad7730_setup(uint8_t device, struct Transducer_SS_Info device_infos[]);
-//void ad7730_softreset(uint8_t device, struct Transducer_SS_Info device_infos[]);
-//void ad7730_system_zero_scale_calibration(uint8_t device, struct Transducer_SS_Info device_infos[]);
-//void ad7730_internal_zero_scale_calibration(uint8_t device, struct Transducer_SS_Info device_infos[]);
-//void ad7730_set_communication_mode(uint8_t device, AD7730_CommunicationTypeDef com_type, AD7730_RegisterTypeDef reg_type, struct Transducer_SS_Info device_infos[]);
-//void ad7730_read_register(uint8_t device, AD7730_RegisterTypeDef reg, uint8_t data[], struct Transducer_SS_Info device_infos[]);
-//void ad7730_write_register(uint8_t device, AD7730_RegisterTypeDef reg, uint8_t data[], struct Transducer_SS_Info device_infos[]);
-//void ad7730_set_filter(uint8_t device, struct Transducer_SS_Info device_infos[]);
+void ad7730_setup(uint8_t device, struct Transducer_SS_Info device_infos[]);
+void ad7730_softreset(uint8_t device, struct Transducer_SS_Info device_infos[]);
+void ad7730_system_zero_scale_calibration(uint8_t device, struct Transducer_SS_Info device_infos[]);
+void ad7730_internal_zero_scale_calibration(uint8_t device, struct Transducer_SS_Info device_infos[]);
+void ad7730_set_communication_mode(uint8_t device, AD7730_CommunicationTypeDef com_type, AD7730_RegisterTypeDef reg_type, struct Transducer_SS_Info device_infos[]);
+void ad7730_read_register(uint8_t device, AD7730_RegisterTypeDef reg, uint8_t data[], struct Transducer_SS_Info device_infos[]);
+void ad7730_write_register(uint8_t device, AD7730_RegisterTypeDef reg, uint8_t data[], struct Transducer_SS_Info device_infos[]);
+void ad7730_set_filter(uint8_t device, struct Transducer_SS_Info device_infos[]);
 
 #endif /* AD7730_H_ */

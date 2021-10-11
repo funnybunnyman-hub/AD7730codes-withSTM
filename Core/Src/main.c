@@ -46,12 +46,19 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t tx_buffer_3[BUFFER_SIZE_SPI3];
+uint8_t tx_buffer_3[BUFFER_SIZE_SPI3] = {READ_CONFIG,0,0x21,0xB0,0,0x04,0xB0,0x10,
+										 0,0,0,0,0,0,0,0,
+										 0,0,0,0,0,0,0,0,
+										 0,0,0,0,0,0,0,0,
+										 0,0,0,0,0,0,0,0,
+										 0,0,0,0,0,0,0,0,
+										 0,0,0,0,0,0,0,0,
+										 0,0,0,0,0,0,0,0};
 
 /* RX_BUFFER FORMAT
  * shadow_buffer[0:slave_state, 1:update_mode_params, 2-3:mode_params{w/o channel}, 4:update_filter_params, 5-7:filter_params]
  */
-uint8_t rx_buffer_3[BUFFER_SIZE_SPI3] = {READ_CONFIG,0,0x21,0xB0,0,0x80,0x03,0x10,
+uint8_t rx_buffer_3[BUFFER_SIZE_SPI3] = {READ_CONFIG,0,0x21,0xB0,0,0x04,0xB0,0x10,
 										 0,0,0,0,0,0,0,0,
 										 0,0,0,0,0,0,0,0,
 										 0,0,0,0,0,0,0,0,
@@ -111,6 +118,7 @@ uint8_t AD7730_REGISTER_SIZE[8] = {1, 3, 2, 3, 1, 3, 3, 3}; //IO, DATA, MODE, FI
 uint8_t mode_register[2] = {0x51, 0xB4}; //01010001, 10110100 : modebits(3)| B/U | D_enable | D_value(2) | word length for data register, HIREF |0| input range(2) | MCLKdisable | burn out | Channel selection(2)
 //single conversion mode | unipolar | AIN2 set as input | 00 | 24bit, ref=5v |0| Input range: 0to80mV | MCLKenable | burnout on | AIN1+ & AIN1-
 uint8_t filter_register[3] = {0x80, 0x03, 0x10}; //default
+uint8_t dac_register[TRANSDUCER_NUMBER] = {0x20, 0x20, 0x20}; //default
 //uint8_t filter_register[3] = {0x80, 0x00, 0x10}; //SF value = 2048 Base sample rate of 50 Hz, SKIP OFF | FAST OFF, CHOP ON
 /* USER CODE END PV */
 
@@ -150,21 +158,23 @@ static inline void set_state(uint8_t command_idx) {
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
 
   if (hspi->Instance == SPI3) {
-    switch (active_buffer) {
-      case 0:
-        shadow_buffer_3_1[63] = slave_state; //3_1
-        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_1, rx_buffer_3, BUFFER_SIZE_SPI3);
-//        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_2, rx_buffer_3, BUFFER_SIZE_SPI3);
-        buffer_updated = 1;
-        break;
-
-      case 1:
-        shadow_buffer_3_0[63] = slave_state; //3_0
-        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_0, rx_buffer_3, BUFFER_SIZE_SPI3);
-//        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_2, rx_buffer_3, BUFFER_SIZE_SPI3);
-        buffer_updated = 1;
-        break;
-    }
+//    switch (active_buffer) {
+//      case 0:
+//        shadow_buffer_3_1[63] = slave_state; //3_1
+//        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_1, rx_buffer_3, BUFFER_SIZE_SPI3);
+////        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_2, rx_buffer_3, BUFFER_SIZE_SPI3);
+//        buffer_updated = 1;
+//        break;
+//
+//      case 1:
+//        shadow_buffer_3_0[63] = slave_state; //3_0
+//        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_0, rx_buffer_3, BUFFER_SIZE_SPI3);
+////        HAL_SPI_TransmitReceive_DMA(&hspi3, shadow_buffer_3_2, rx_buffer_3, BUFFER_SIZE_SPI3);
+//        buffer_updated = 1;
+//        break;
+//    }
+    tx_buffer_3[63] = slave_state;
+    HAL_SPI_TransmitReceive_DMA(&hspi3, tx_buffer_3, rx_buffer_3, BUFFER_SIZE_SPI3);
 
     set_state(rx_buffer_3[0]);
     if (rx_buffer_3[1] != 0)
@@ -178,6 +188,12 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     	filter_register[1] = rx_buffer_3[6];
     	filter_register[2] = rx_buffer_3[7];
     }
+    if (rx_buffer_3[8] != 0)
+	{
+		for(uint8_t i = 0; i < TRANSDUCER_NUMBER; i++){
+			dac_register[0] = rx_buffer_3[i+8];
+		}
+	}
   }
 
 }
@@ -226,9 +242,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-//  HAL_GPIO_WritePin(RESET0_GPIO_Port, RESET0_Pin, GPIO_PIN_SET);
-//  HAL_GPIO_WritePin(RESET1_GPIO_Port, RESET1_Pin, GPIO_PIN_SET);
-//  HAL_GPIO_WritePin(RESET2_GPIO_Port, RESET2_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(RESET_GPIO_Port, RESET_Pin, GPIO_PIN_SET);
 //  HAL_GPIO_WritePin(CS0_GPIO_Port, CS0_Pin, GPIO_PIN_SET);
 //  HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
 //  HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
@@ -243,132 +257,135 @@ int main(void)
 	  switch (slave_state) {
 
 	       case READ_CONFIG:
-	    	   copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
-	    	   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE+8], slave_infos);
-			   }
-	    	   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-	    		   ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 11], slave_infos);
-			   }
-	    	   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-	    		   ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 12], slave_infos);
-			   }
-	    	   if (buffer_updated == 1) {
-	    		   switch (active_buffer) {
-					 case 0:
-					   copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-					   break;
-
-					 case 1:
-					   copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-					   break;
-				   }
-				   active_buffer ^= 1;
-				   buffer_updated = 0;
-	    	   }
-	    	   break;
+//	    	   copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
+//	    	   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE + 8], slave_infos);
+//			   }
+//	    	   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//	    		   ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 11], slave_infos);
+//			   }
+//	    	   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//	    		   ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 12], slave_infos);
+//			   }
+//	    	   if (buffer_updated == 1) {
+//	    		   switch (active_buffer) {
+//					 case 0:
+//					   copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//					   break;
+//
+//					 case 1:
+//					   copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//					   break;
+//				   }
+//				   active_buffer ^= 1;
+//				   buffer_updated = 0;
+//	    	   }
+//	    	   break;
 
 	       case CHECKING_SPI2:
 
-	       	   copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
+//	       	   copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				   ad7730_write_register(dev_idx, REG_FILTER_REGISTER, filter_register, slave_infos);
+//			   }
+////			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+////				   ad7730_read_register(dev_idx, REG_IO_REGISTER, &tx_buffer_3[dev_idx + 8], slave_infos);
+////			   }
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE+8], slave_infos);
+//			   }
+////			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {//setting a offset voltage between AIN+ and AIN-
+////				 uint8_t DAC_command = 0x00 | 0x00; //+ | 20mV
+////				 ad7730_write_register(dev_idx, REG_DAC_REGISTER, DAC_command, slave_infos);
+////			   }
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				 ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 11], slave_infos);
+//			   }
+////			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) { //internal zero calibration
+////				 uint8_t conversion_command[2] = {0x91, 0x80 | CHANNEL_A1};
+////				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
+////			   }
+////			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) { //internal full calibration
+////				 uint8_t conversion_command[2] = {0xB1, 0x80 | CHANNEL_A1};
+////				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
+////			   }
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				 uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
+//				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
+//			   }
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				 ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 12], slave_infos);
+//			   }
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				 uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
+//				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
+//			   }
+//			   //wait for ready
+//		       for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//		         while (HAL_GPIO_ReadPin(ready_infos[dev_idx].rdy_port, ready_infos[dev_idx].rdy_pin) == GPIO_PIN_SET) {
+//		          uint8_t dbg = dev_idx;
+//		         }
+//		         ad7730_read_register(dev_idx, REG_DATA_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE + 16], slave_infos);
+//		       }
+	       	//TODO Make do while loop
+//			  if (buffer_updated == 1) {
+//	           switch (active_buffer) {
+//	             case 0:
+//	               copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//	               break;
+//
+//	             case 1:
+//	               copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//	               break;
+//	           }
+//			   active_buffer ^= 1;
+//			   buffer_updated = 0;
+//			 }
+			 break;
+
+	       case SETTING:
+//	    	   copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
+
 			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 				   ad7730_write_register(dev_idx, REG_FILTER_REGISTER, filter_register, slave_infos);
 			   }
 //			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-//				   ad7730_read_register(dev_idx, REG_IO_REGISTER, &tx_buffer_3[dev_idx + 8], slave_infos);
+//				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE], slave_infos);
+////				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE+8], slave_infos);
 //			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE+8], slave_infos);
+			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {//setting a offset voltage between AIN+ and AIN-
+//			     uint8_t DAC_command = 0x20 | 0x04; //- | 10mV
+				 ad7730_write_register(dev_idx, REG_DAC_REGISTER, &dac_register[dev_idx], slave_infos);
 			   }
-//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {//setting a offset voltage between AIN+ and AIN-
-//				 uint8_t DAC_command = 0x00 | 0x00; //+ | 20mV
-//				 ad7730_write_register(dev_idx, REG_DAC_REGISTER, DAC_command, slave_infos);
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				 ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 3], slave_infos);
+////				 ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 11], slave_infos);
 //			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				 ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 11], slave_infos);
-			   }
-//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) { //internal zero calibration
-//				 uint8_t conversion_command[2] = {0x91, 0x80 | CHANNEL_A1};
-//				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
-//			   }
-//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) { //internal full calibration
-//				 uint8_t conversion_command[2] = {0xB1, 0x80 | CHANNEL_A1};
-//				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
-//			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				 uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
-				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
-			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				 ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 12], slave_infos);
-			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				 uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
-				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
-			   }
-			   //wait for ready
-		       for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-		         while (HAL_GPIO_ReadPin(ready_infos[dev_idx].rdy_port, ready_infos[dev_idx].rdy_pin) == GPIO_PIN_SET) {
-		          uint8_t dbg = dev_idx;
-		         }
-		         ad7730_read_register(dev_idx, REG_DATA_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE + 16], slave_infos);
-		       }
-	       	//TODO Make do while loop
-			  if (buffer_updated == 1) {
-	           switch (active_buffer) {
-	             case 0:
-	               copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-	               break;
-
-	             case 1:
-	               copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-	               break;
-	           }
-			   active_buffer ^= 1;
-			   buffer_updated = 0;
-			 }
-			 break;
-
-	       case SETTING:
-	    	   copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
-
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				   ad7730_write_register(dev_idx, REG_FILTER_REGISTER, filter_register, slave_infos);
-			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE], slave_infos);
-			   }
-//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {//setting a offset voltage between AIN+ and AIN-
-//			     uint8_t DAC_command = 0x20 | 0x08; //- | 20mV
-//				 ad7730_write_register(dev_idx, REG_DAC_REGISTER, DAC_command, slave_infos);
-//			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				 ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 3], slave_infos);
-			   }
 			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 				 uint8_t conversion_command[2] = {0x81, mode_register[1] | CHANNEL_A1}; //Internal Zero Calibaration
 				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
 				 while (HAL_GPIO_ReadPin(ready_infos[dev_idx].rdy_port, ready_infos[dev_idx].rdy_pin) == GPIO_PIN_SET) {
-				   uint8_t dbg = dev_idx;
+//				   uint8_t dbg = dev_idx;
 				 }
 			   }
 			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 				 uint8_t conversion_command[2] = {0xA1, mode_register[1] | CHANNEL_A1}; //Internal Full Calibaration
 				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
 				 while (HAL_GPIO_ReadPin(ready_infos[dev_idx].rdy_port, ready_infos[dev_idx].rdy_pin) == GPIO_PIN_SET) {
-				   uint8_t dbg = dev_idx;
+//				   uint8_t dbg = dev_idx;
 				 }
 			   }
 			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 				 uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
 				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
 				 while (HAL_GPIO_ReadPin(ready_infos[dev_idx].rdy_port, ready_infos[dev_idx].rdy_pin) == GPIO_PIN_SET) {
-				   uint8_t dbg = dev_idx;
+//				   uint8_t dbg = dev_idx;
 				 }
 			   }
-			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-				 ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 6], slave_infos);
-			   }
+//			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+//				 ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 4], slave_infos);
+////				 ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 12], slave_infos);
+//			   }
 //			   for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 //				 uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
 //				 ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
@@ -377,19 +394,19 @@ int main(void)
 //				 }
 //			   }
 
-			   if (buffer_updated == 1) {
-				   switch (active_buffer) {
-				   	   case 0:
-					   	   copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-					   	   break;
-
-				   	   case 1:
-				   		   copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-				   		   break;
-				   }
-				   active_buffer ^= 1;
-				   buffer_updated = 0;
-			   }
+//			   if (buffer_updated == 1) {
+//				   switch (active_buffer) {
+//				   	   case 0:
+//					   	   copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//					   	   break;
+//
+//				   	   case 1:
+//				   		   copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//				   		   break;
+//				   }
+//				   active_buffer ^= 1;
+//				   buffer_updated = 0;
+//			   }
 			   break;
 //
 	       case PROVIDE_DATA:
@@ -412,17 +429,17 @@ int main(void)
 ////	           }
 //			   ad7730_read_register(dev_idx, REG_DATA_REGISTER, &tx_buffer_3[dev_idx * 6], slave_infos);
 //			 }
-	           switch (active_buffer) {
-	             case 0:
-	               copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-	               break;
-
-	             case 1:
-	               copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-	               break;
-	           }
-			   active_buffer ^= 1;
-			   buffer_updated = 0;
+//	           switch (active_buffer) {
+//	             case 0:
+//	               copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//	               break;
+//
+//	             case 1:
+//	               copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//	               break;
+//	           }
+//			   active_buffer ^= 1;
+//			   buffer_updated = 0;
 	         break;
 
 	       case MONITOR:
@@ -438,26 +455,26 @@ int main(void)
 	          *
 	          */
 
-             copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
+//             copy_buffer(tx_buffer_3, BUFFER_SIZE_SPI3, rx_buffer_3, BUFFER_SIZE_SPI3);
 
 //	         for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 //	           ad7730_write_register(dev_idx, REG_FILTER_REGISTER, filter_register, slave_infos);
 //	         }
-//             for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-//			   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE], slave_infos);
-//			 }
-//             for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-//			   ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 3], slave_infos);
-//		     }
-//             for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
-//			   ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 6], slave_infos);
-//			 }
-             if(!conv_cmd){
+             for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+			   ad7730_read_register(dev_idx, REG_FILTER_REGISTER, &tx_buffer_3[dev_idx * CONFIGDATA_SIZE + 16], slave_infos);
+			 }
+             for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+			   ad7730_read_register(dev_idx, REG_DAC_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 19], slave_infos);
+		     }
+             for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
+			   ad7730_read_register(dev_idx, REG_MODE_REGISTER, &tx_buffer_3[dev_idx*CONFIGDATA_SIZE + 20], slave_infos);
+			 }
+             if(!conv_cmd){ // To set continuous read mode of a channel
 				 for (uint8_t dev_idx = 0; dev_idx < TRANSDUCER_NUMBER; dev_idx++) {
 				   uint8_t conversion_command[2] = {mode_register[0], mode_register[1] | CHANNEL_A1};
 				   ad7730_write_register(dev_idx, REG_MODE_REGISTER, conversion_command, slave_infos);
 				   while (HAL_GPIO_ReadPin(ready_infos[dev_idx].rdy_port, ready_infos[dev_idx].rdy_pin) == GPIO_PIN_SET) {
-					  uint8_t dbg = dev_idx;
+//					  uint8_t dbg = dev_idx;
 				   }
 				 }
 				 conv_cmd = 1;
@@ -490,19 +507,19 @@ int main(void)
 	          * Switch shadow buffer when new data is available
 	          * and set indicator flag for SPI-slave callback
 	          */
-	         if (buffer_updated == 1) {
-	           switch (active_buffer) {
-	             case 0:
-	               copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-	               break;
-
-	             case 1:
-	               copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
-	               break;
-	           }
-	           active_buffer ^= 1;
-	           buffer_updated = 0;
-	         }
+//	         if (buffer_updated == 1) {
+//	           switch (active_buffer) {
+//	             case 0:
+//	               copy_buffer(shadow_buffer_3_0, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//	               break;
+//
+//	             case 1:
+//	               copy_buffer(shadow_buffer_3_1, BUFFER_SIZE_SPI3, tx_buffer_3, BUFFER_SIZE_SPI3);
+//	               break;
+//	           }
+//	           active_buffer ^= 1;
+//	           buffer_updated = 0;
+//	         }
 
 	         break;
 
